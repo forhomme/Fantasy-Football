@@ -24,5 +24,6 @@ injuries = injuries[['full_name', 'Club', 'Status', 'Return Date', 'Latest News'
 injuries.columns = injuries.columns.str.lower().str.replace(' ', '_')
 
 # convert last_updated to datetime
+pd.set_option('mode.chained_assignment', None)
 injuries['last_updated'] = pd.to_datetime(injuries['last_updated'], format='%d/%m/%Y')
 print(injuries)

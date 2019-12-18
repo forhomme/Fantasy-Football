@@ -12,8 +12,8 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 # start xvfb
-display = Xvfb()
-display.start()
+# display = Xvfb()
+# display.start()
 
 # get from url
 xg_url = 'https://understat.com/league/EPL'
@@ -24,7 +24,6 @@ xg_url = 'https://understat.com/league/EPL'
 options = webdriver.FirefoxOptions()
 options.add_argument('headless')
 driver = webdriver.Firefox(firefox_options=options)
-driver.implicitly_wait(10)
 driver.get(xg_url)
 soup = BeautifulSoup(driver.page_source, 'lxml')
 
@@ -36,7 +35,7 @@ headers_list = []
 for header in headers:
     headers_list.append(header.get_text(strip=True))
 
-# call elemet in the header
+# call element in the header
 body = soup.find('div', attrs={'class': 'chemp margin-top jTable'}).table.tbody
 all_row_list = []
 for tr in body.find_all('tr'):
@@ -47,14 +46,17 @@ for tr in body.find_all('tr'):
     all_row_list.append(current_row)
 
 xg_df = pd.DataFrame(all_row_list, columns=headers_list)
+driver.close()
 
 # get rid unwanted text
 xg_df['xG'] = xg_df['xG'].str.extract(r'^(.+?)[\+\-]', expand=True)
 xg_df['xGA'] = xg_df['xGA'].str.extract(r'^(.+?)[\+\-]', expand=True)
 xg_df['xPTS'] = xg_df['xPTS'].str.extract(r'^(.+?)[\+\-]', expand=True)
+xg_df['xG'] = xg_df['xG'].fillna(xg_df['G'])
+xg_df['xGA'] = xg_df['xGA'].fillna(xg_df['GA'])
+xg_df['xPTS'] = xg_df['xPTS'].fillna(xg_df['PTS'])
 xg_data = xg_df[['Team', 'M', 'W', 'L', 'G', 'GA', 'PTS', 'xG', 'xGA', 'xPTS']]
 xg_data = xg_data.replace('Wolverhampton Wanderers', 'Wolverhampton')
-driver.close()
 
 # add new goal difference columns
 pd.set_option('mode.chained_assignment', None)
@@ -100,10 +102,9 @@ fixture_url = 'https://us.soccerway.com/national/england/premier-league/20192020
 # fixture_html = fixture_req.content
 
 # selenium to access data
-# options = webdriver.FirefoxOptions()
-# options.add_argument('headless')
-# driver = webdriver.Firefox(firefox_options=options)
-driver.implicitly_wait(15)
+options = webdriver.FirefoxOptions()
+options.add_argument('headless')
+driver = webdriver.Firefox(firefox_options=options)
 driver.get(fixture_url)
 soup = BeautifulSoup(driver.page_source, 'lxml')
 
@@ -130,13 +131,12 @@ for tr in body.find_all('tr'):
     all_row_list.append(current_row)
 
 fixture_df = pd.DataFrame(all_row_list, columns=headers_list)
+driver.close()
 fixture_df = fixture_df.rename(columns={'Home team': 'Home_Team', 'Away team': 'Away_Team'})
 fixture_df = fixture_df[['Date', 'Home_Team', 'Away_Team']]
 fixture_df = fixture_df.replace(['Newcastle United', 'AFC Bournemouth', 'Leicester City', 'Norwich City', 'West Ham United',
-                       'Tottenham Hotspur', 'Wolverhampton …','Brighton & Hov…'],
+                       'Tottenham Hotspur', 'Wolverhampton …', 'Brighton & Hov…'],
                       ['Newcastle', 'Bournemouth', 'Leicester', 'Norwich', 'West Ham', 'Tottenham', 'Wolverhampton', 'Brighton'])
-driver.close()
-display.stop()
 
 # calculate over fixture
 xg_data_pg = xg_data[['Team', 'xG_pg', 'xGA_pg']]
@@ -190,4 +190,20 @@ def win_cs(df, home_goals_col, away_goals_col, n=10000):
 matchups = win_cs(df=matchups, home_goals_col='xG_adjusted_home', away_goals_col='xG_adjusted_away')
 displaycols = ['Home_Team', 'xG_adjusted_home', 'home_win', 'home_clean_sheet',
                'Away_Team', 'xG_adjusted_away', 'away_win', 'away_clean_sheet']
-print(matchups[displaycols])
+
+# Initialize the matplotlib figure (f) and axes (ax), and set width and height of the plot
+# In this case we want two plots, one each for home and away teams
+# We can plot these on top of each other and use a shared x axis by calling nrows=2 and sharex=True
+f, (ax1, ax2) = plt.subplots(nrows=2, figsize=(7, 10), sharex=True)
+
+# Create the plots, choosing the axes, the variables for each axis, the data source and the colour
+sns.barplot(x='home_win', y='Home_Team', data=matchups, color='b', ax=ax1)
+sns.barplot(x='away_win', y='Away_Team', data=matchups, color='b', ax=ax2)
+
+# Rename the axes, setting y axis label to be blank
+ax1.set(xlabel='', ylabel='', title='Home Teams')
+ax2.set(xlabel='Difference Win Projection', ylabel='', title='Away Teams')
+
+# Remove the borders from the plot
+sns.despine(left=True, bottom=True)
+plt.show()
